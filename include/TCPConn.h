@@ -27,6 +27,9 @@ public:
    void setPassword();
    void changePassword();
    
+   int getSocketFD(); 
+   bool checkIPAddr(std::string ipaddr);
+
    bool getUserInput(std::string &cmd);
 
    void disconnect();

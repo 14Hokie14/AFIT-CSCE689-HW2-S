@@ -71,14 +71,27 @@ void TCPServer::listenSvr() {
             // _server_log.strerrLog("Data received on socket but failed to accept.");
             continue;
          }
-         std::cout << "***Got a connection***\n";
+         
+         std::cout << "***New Connection on socket " << new_conn->getSocketFD()  << "***\n";
 
          _connlist.push_back(std::unique_ptr<TCPConn>(new_conn));
 
          // Get their IP Address string to use in logging
          std::string ipaddr_str;
          new_conn->getIPAddrStr(ipaddr_str);
-
+         
+         std::cout << "***Checking IP Address " << ipaddr_str << " against whitelist now.***\n";
+         if(new_conn->checkIPAddr(ipaddr_str)){
+            std::cout << "***IP Address was contained in the white list.***\n";
+            // TODO Log this
+         } else {
+            std::cout << "***IP Address was not contained in the white list.***\n";
+            new_conn->sendText("Your IP Address was not contained in the whitelist.\n");
+            new_conn->sendText("You're now being disconnected from the server.\n");
+            new_conn->disconnect();
+            continue; 
+            // TODO Log this
+         }
 
          new_conn->sendText("Welcome to the CSCE 689 Server!\n");
 

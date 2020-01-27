@@ -6,6 +6,7 @@
 #include <iostream>
 #include "TCPConn.h"
 #include "strfuncts.h"
+#include <fstream>
 
 // The filename/path of the password file
 const char pwdfilename[] = "passwd";
@@ -147,6 +148,47 @@ void TCPConn::changePassword() {
    // Insert your amazing code here
 }
 
+/**********************************************************************************************
+ * checkIPAddr - Compares the passed in string against the whitelist
+ *
+ * Returns: True if the passed in input matchs one of the IP addresses listed in the
+ *    whitelist.  Returns false if the file fails to open correctly (also prints out an error
+ *    message), or if the passed in ip address does not match anything in the white list. 
+ **********************************************************************************************/
+
+bool TCPConn::checkIPAddr(std::string ipaddr){
+   // Set up the file stream and empty string for comparison
+   bool retValue = false; 
+   std::ifstream inputFile("whitelist");
+   std::string line; 
+
+   // Now iterate through each line of the file and compare the line to the ipaddr_str
+   if(inputFile){
+      // The stream opened correctly, now iteratre and compare, return true when you get a hit
+      while(std::getline(inputFile, line)){
+         if(ipaddr.compare(line) == 0){
+            return true;
+         }
+      }
+   } else {
+      // Make sure the ifstream opened correctly
+      perror("Failure to open file whitelist in TCPConn.\n");
+      return false; 
+   }
+
+   return false; 
+}
+
+/**********************************************************************************************
+ * getSocketFD - Returns this TCP connections file descriptor as an int. 
+ *
+ * Returns: The file descriptor as an int for prtinting to the server's terminal and 
+ * logging
+ **********************************************************************************************/
+
+int TCPConn::getSocketFD() {
+   return _connfd.getFD();
+}
 
 /**********************************************************************************************
  * getUserInput - Gets user data and includes a buffer to look for a carriage return before it is
@@ -198,7 +240,6 @@ void TCPConn::getMenuChoice() {
       return;
    lower(cmd);      
 
-   // Don't be lazy and use my outputs--make your own!
    std::string msg;
    if (cmd.compare("hello") == 0) {
       _connfd.writeFD("Hello back!\n");
@@ -211,20 +252,19 @@ void TCPConn::getMenuChoice() {
       _connfd.writeFD("New Password: ");
       _status = s_changepwd;
    } else if (cmd.compare("1") == 0) {
-      msg += "You want a prediction about the weather? You're asking the wrong Phil.\n";
-      msg += "I'm going to give you a prediction about this winter. It's going to be\n";
-      msg += "cold, it's going to be dark and it's going to last you for the rest of\n";
-      msg += "your lives!\n";
-      _connfd.writeFD(msg);
+      _connfd.writeFD("C++ got the OOP features from Simula67 Programming language.\n");
    } else if (cmd.compare("2") == 0) {
-      _connfd.writeFD("42\n");
+      msg += "Not purely object oriented: We can write C++ code without using\n";
+      msg += "classes and it will compile without showing any error message.\n";
+      _connfd.writeFD(msg);
    } else if (cmd.compare("3") == 0) {
-      _connfd.writeFD("That seems like a terrible idea.\n");
+      _connfd.writeFD("C and C++ were invented at same place i.e. at T bell laboratories.\n");
    } else if (cmd.compare("4") == 0) {
-
+      msg += "Concept of reference variables: operator overloading borrowed from the Algol 68\n";
+      msg += "Algol 68 programming language.\n";
+      _connfd.writeFD(msg);
    } else if (cmd.compare("5") == 0) {
-      _connfd.writeFD("I'm singing, I'm in a computer and I'm siiiingiiiing! I'm in a\n");
-      _connfd.writeFD("computer and I'm siiiiiiinnnggiiinnggg!\n");
+      _connfd.writeFD("A function is the minimum requirement for a C++ program to run.\n");
    } else {
       msg = "Unrecognized command: ";
       msg += cmd;
@@ -242,14 +282,8 @@ void TCPConn::getMenuChoice() {
 void TCPConn::sendMenu() {
    std::string menustr;
 
-   // Make this your own!
-   menustr += "Available choices: \n";
-   menustr += "  1). Provide weather report.\n";
-   menustr += "  2). Learn the secret of the universe.\n";
-   menustr += "  3). Play global thermonuclear war\n";
-   menustr += "  4). Do nothing.\n";
-   menustr += "  5). Sing. Sing a song. Make it simple, to last the whole day long.\n\n";
-   menustr += "Other commands: \n";
+   menustr += "Available menu choices are: \n";
+   menustr += "  1 - 5 provide c++ information.\n";
    menustr += "  Hello - self-explanatory\n";
    menustr += "  Passwd - change your password\n";
    menustr += "  Menu - display this menu\n";
