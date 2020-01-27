@@ -31,6 +31,8 @@ PasswdMgr::~PasswdMgr() {
 bool PasswdMgr::checkUser(const char *name) {
    std::vector<uint8_t> passwd, salt;
 
+   std::cout << "in checkUser\n";
+
    bool result = findUser(name, passwd, salt);
 
    return result;
@@ -103,7 +105,26 @@ bool PasswdMgr::changePasswd(const char *name, const char *passwd) {
 
 bool PasswdMgr::readUser(FileFD &pwfile, std::string &name, std::vector<uint8_t> &hash, std::vector<uint8_t> &salt)
 {
-   // Insert your perfect code here!
+   // Get the username
+   if(pwfile.readStr(name) == -1){
+      return false;
+   }
+
+   std::cout << name << " here\n";
+   // Get the second line, which is 32 bytes of hashed password, and the 16 byte salt
+   std::string secondLine;
+   if(pwfile.readStr(secondLine) == -1){
+      return false;
+   }
+
+   // Now secondLine is all 48 bytes, now we need to break it up.  I also change the 
+   // char to a uint8_t. 
+   for(int i = 0; i < 32; i++){
+      hash[i] = (uint8_t)atoi(&secondLine[i]);
+   }
+   for(int i = 32; i < 48; i++){
+      salt[i] = (uint8_t)atoi(&secondLine[i]);
+   }
 
    return true;
 }
@@ -168,6 +189,8 @@ bool PasswdMgr::findUser(const char *name, std::vector<uint8_t> &hash, std::vect
          return true;
       }
    }
+
+   std::cout << "in findUser\n";
 
    hash.clear();
    salt.clear();
