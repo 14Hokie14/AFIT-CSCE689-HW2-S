@@ -7,6 +7,7 @@
 #include "TCPConn.h"
 #include "strfuncts.h"
 #include <fstream>
+#include "PasswdMgr.h"
 
 // The filename/path of the password file
 const char pwdfilename[] = "passwd";
@@ -120,7 +121,22 @@ void TCPConn::handleConnection() {
  **********************************************************************************************/
 
 void TCPConn::getUsername() {
-   // Insert your mind-blowing code here
+   // Read in a line from the connection
+   std::string input;
+   _connfd.readStr(input);
+   lower(input);
+   PasswdMgr pwm("passwd");
+   //const char* in = input.c_str();
+
+   // Check to see if the username exists in the password file
+   if(pwm.checkUser(input.c_str())){
+      _status = s_username;
+      _connfd.writeFD("Password: "); 
+   } else {
+      _connfd.writeFD("There is account for your username.\n");
+      _connfd.writeFD("Please create an account with the my_adduser program.\n");
+      // TODO LOG THIS
+   }
 }
 
 /**********************************************************************************************
