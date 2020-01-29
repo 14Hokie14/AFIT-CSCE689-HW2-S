@@ -130,11 +130,16 @@ void TCPConn::getUsername() {
 
    // Check to see if the username exists in the password file
    if(pwm.checkUser(input.c_str())){
-      _status = s_username;
+      _status = s_passwd;
+      _username.clear(); // Make sure _username is clear just in case
+      _username.append(input); // Copy input into _username
       _connfd.writeFD("Password: "); 
+      std::cout << "User " << _username << " has established a connection.\n";
    } else {
       _connfd.writeFD("There is account for your username.\n");
       _connfd.writeFD("Please create an account with the my_adduser program.\n");
+      std::cout << "Incorrect username, disconnecting.";
+      disconnect();
       // TODO LOG THIS
    }
 }
@@ -148,7 +153,27 @@ void TCPConn::getUsername() {
  **********************************************************************************************/
 
 void TCPConn::getPasswd() {
-   // Insert your astounding code here
+   // Read in a line from the connection
+   std::string input;
+   _connfd.readStr(input);
+   PasswdMgr pwm("passwd");
+
+   // Now call checkPasswd() on the username and passwd 
+   if(pwm.checkPasswd(_username.c_str(), input.c_str())){
+      // The password matched what was in the file
+      _connfd.writeFD("Correct, welcome to the server!\n");
+      sendMenu(); // Send the menu to the user
+      _status = s_menu;
+   } else if(_pwd_attempts == 0){
+      _connfd.writeFD("Incorrect password, please try again. 1 remaining attempt.\n");
+      _connfd.writeFD("Password: "); 
+      _pwd_attempts++;
+   } else {
+       _connfd.writeFD("Incorrect, this failed login has been logged.\n");
+       _connfd.writeFD("You will now be disconnected from the server.\n");
+       disconnect();
+   }
+   
 }
 
 /**********************************************************************************************

@@ -296,7 +296,8 @@ void PasswdMgr::hashArgon2(std::vector<uint8_t> &ret_hash, std::vector<uint8_t> 
    srand(time(0)); // Change the seed so we don't have the same salt every time
    if(in_salt->size() == 0){
       for (auto i = 0; i < saltlen; i++){
-         ret_salt.push_back(rand() % 122 + 48);
+         // This generates a random number bettwen 65 (A in ascii) to 122 (z)
+         ret_salt.push_back((rand() % 57) + 65);
       }
    }
 
@@ -326,7 +327,7 @@ void PasswdMgr::hashArgon2(std::vector<uint8_t> &ret_hash, std::vector<uint8_t> 
 
    // Use the high-level API for argon 2
    argon2i_hash_raw(t_cost, m_cost, parallelism, pwd.c_str(), pwd.size(), salt, saltlen, hash, hashlen);
-
+   
    // Put the hash into ret_hash
    for(auto i = 0; i < hashlen; i++){
       ret_hash.push_back(hash[i]);
