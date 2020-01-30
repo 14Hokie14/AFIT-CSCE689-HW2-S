@@ -95,9 +95,8 @@ void TCPConn::handleConnection() {
             changePassword();
             break;
 
-         case s_menu:
+         case s_menu: 
             getMenuChoice();
-
             break;
 
          default:
@@ -125,6 +124,7 @@ void TCPConn::getUsername() {
    std::string input;
    _connfd.readStr(input);
    lower(input);
+   _username = input;
    PasswdMgr pwm("passwd");
    //const char* in = input.c_str();
 
@@ -134,13 +134,22 @@ void TCPConn::getUsername() {
       _username.clear(); // Make sure _username is clear just in case
       _username.append(input); // Copy input into _username
       _connfd.writeFD("Password: "); 
-      std::cout << "User " << _username << " has established a connection.\n";
+      std::cout << "User " << _username << " has established a connection.\n"; 
    } else {
-      _connfd.writeFD("There is account for your username.\n");
-      _connfd.writeFD("Please create an account with the my_adduser program.\n");
+      _connfd.writeFD("There is no account for the given username,\n");
+      _connfd.writeFD("please create an account with the my_adduser program.\n");
       std::cout << "Incorrect username, disconnecting.";
+
+      std::string event ("IP Address: ");
+      std::string ipaddr_str;
+      getIPAddrStr(ipaddr_str);
+      event.append(ipaddr_str);
+      event.append(" ; User: ");
+      event.append(input);
+      event.append("; Incorrect username.");
+      logEvent(event.c_str());
+
       disconnect();
-      // TODO LOG THIS
    }
 }
 
@@ -164,6 +173,17 @@ void TCPConn::getPasswd() {
       _connfd.writeFD("Correct, welcome to the server!\n");
       sendMenu(); // Send the menu to the user
       _status = s_menu;
+
+      std::string event ("IP Address: ");
+      std::string ipaddr_str;
+      getIPAddrStr(ipaddr_str);
+      event.append(ipaddr_str);
+      event.append(" ; User: ");
+      event.append(_username);
+      event.append("; Successful connection.");
+      logEvent(event.c_str());
+
+
    } else if(_pwd_attempts == 0){
       _connfd.writeFD("Incorrect password, please try again. 1 remaining attempt.\n");
       _connfd.writeFD("Password: "); 
@@ -171,6 +191,16 @@ void TCPConn::getPasswd() {
    } else {
        _connfd.writeFD("Incorrect, this failed login has been logged.\n");
        _connfd.writeFD("You will now be disconnected from the server.\n");
+
+      std::string event ("IP Address: ");
+      std::string ipaddr_str;
+      getIPAddrStr(ipaddr_str);
+      event.append(ipaddr_str);
+      event.append(" ; User: ");
+      event.append(_username);
+      event.append("; Failed to insert password twice.");
+      logEvent(event.c_str());
+
        disconnect();
    }
    
@@ -186,7 +216,37 @@ void TCPConn::getPasswd() {
  **********************************************************************************************/
 
 void TCPConn::changePassword() {
-   // Insert your amazing code here
+   std::string passwd1, passwd2;
+   
+   // Read in two strings, compare them, if they match change the password
+   // if they don't match have the user input 2 new strings
+   bool valid_passwd = false;
+   while (!valid_passwd) {
+      _connfd.readStr(passwd1);
+      clrNewlines(passwd1);      
+
+      _connfd.writeFD("Enter the password again: \n");
+
+      _connfd.readStr(passwd2);
+      clrNewlines(passwd2);
+
+      if (passwd2.compare(passwd1) == 0)
+         valid_passwd = true;
+      else{
+         _connfd.writeFD("Passwords must match. Try again with password 1:\n");
+         passwd1.clear();
+         passwd2.clear();
+      }
+   }
+
+   // Now open up a password manager and change the password
+   PasswdMgr pwm("passwd");
+   pwm.changePasswd(_username.c_str(), passwd1.c_str());
+
+   // Set the status to menu
+   _status = s_menu;
+   _connfd.writeFD("Your password is updated. You may now enter a new menu choice. \n");
+
 }
 
 /**********************************************************************************************
@@ -198,8 +258,7 @@ void TCPConn::changePassword() {
  **********************************************************************************************/
 
 bool TCPConn::checkIPAddr(std::string ipaddr){
-   // Set up the file stream and empty string for comparison
-   bool retValue = false; 
+   // Set up the file stream and empty string for comparison 
    std::ifstream inputFile("whitelist");
    std::string line; 
 
@@ -290,7 +349,7 @@ void TCPConn::getMenuChoice() {
       _connfd.writeFD("Disconnecting...goodbye!\n");
       disconnect();
    } else if (cmd.compare("passwd") == 0) {
-      _connfd.writeFD("New Password: ");
+      _connfd.writeFD("New Password: \n");
       _status = s_changepwd;
    } else if (cmd.compare("1") == 0) {
       _connfd.writeFD("C++ got the OOP features from Simula67 Programming language.\n");
@@ -323,12 +382,14 @@ void TCPConn::getMenuChoice() {
 void TCPConn::sendMenu() {
    std::string menustr;
 
+   menustr += "************************************\n";
    menustr += "Available menu choices are: \n";
-   menustr += "  1 - 5 provide c++ information.\n";
-   menustr += "  Hello - self-explanatory\n";
-   menustr += "  Passwd - change your password\n";
-   menustr += "  Menu - display this menu\n";
-   menustr += "  Exit - disconnect.\n\n";
+   menustr += "  1-5 : provide c++ information.\n";
+   menustr += "  Hello : self-explanatory\n";
+   menustr += "  Passwd : change your password\n";
+   menustr += "  Menu : display this menu\n";
+   menustr += "  Exit : disconnect.\n";
+   menustr += "************************************\n";
 
    _connfd.writeFD(menustr);
 }
@@ -340,6 +401,7 @@ void TCPConn::sendMenu() {
  *    Throws: runtime_error for unrecoverable issues
  **********************************************************************************************/
 void TCPConn::disconnect() {
+   
    _connfd.closeFD();
 }
 
@@ -360,4 +422,30 @@ bool TCPConn::isConnected() {
 void TCPConn::getIPAddrStr(std::string &buf) {
    return _connfd.getIPAddrStr(buf);
 }
+
+/**
+ * logEvent - takes a string and writes it to the log file, after a date/time
+ * 
+ *    params - event string to write to the file
+ * 
+ */
+void TCPConn::logEvent(const char* event){
+   // Open the file with the append option
+   FileFD logFile("server.log");
+   if (!logFile.openFile(FileFD::appendfd))
+      perror ("Could not open server.log\n");
+   
+   // Get the current time and write it to the buffer
+   time_t now = time(0);
+   char* localTime = ctime(&now);
+   std::string local(localTime);
+   clrNewlines(local);
+   logFile.writeFD(local);
+   logFile.writeFD(" : "); // Just to make the line more readable
+
+   // Now write the event sting and a newline. 
+   logFile.writeFD(event);
+   logFile.writeFD("\n");
+}
+
 

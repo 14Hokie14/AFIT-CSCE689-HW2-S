@@ -17,6 +17,8 @@ public:
    void listenSvr();
    void shutdown();
 
+   void logEvent(const char* event);
+
 private:
    // Class to manage the server socket
    SocketFD _sockfd;

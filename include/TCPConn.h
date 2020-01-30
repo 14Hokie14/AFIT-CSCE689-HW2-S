@@ -26,6 +26,9 @@ public:
    void getMenuChoice();
    void setPassword();
    void changePassword();
+
+   void logEvent(const char* event);
+   
    
    int getSocketFD(); 
    bool checkIPAddr(std::string ipaddr);

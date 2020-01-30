@@ -10,9 +10,12 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <ctime>
 #include "TCPServer.h"
+#include "strfuncts.h"
 
-TCPServer::TCPServer(){ // :_server_log("server.log", 0) {
+TCPServer::TCPServer(){ 
+   logEvent("Server started.");
 }
 
 
@@ -83,14 +86,21 @@ void TCPServer::listenSvr() {
          std::cout << "***Checking IP Address " << ipaddr_str << " against whitelist now.***\n";
          if(new_conn->checkIPAddr(ipaddr_str)){
             std::cout << "***IP Address was contained in the white list.***\n";
-            // TODO Log this
+            std::string event ("IP Address: ");
+            event.append(ipaddr_str);
+            event.append(" connected to the server.");
+            logEvent(event.c_str());
          } else {
             std::cout << "***IP Address was not contained in the white list.***\n";
             new_conn->sendText("Your IP Address was not contained in the whitelist.\n");
             new_conn->sendText("You're now being disconnected from the server.\n");
             new_conn->disconnect();
+            std::string event ("IP Address: ");
+            event.append(ipaddr_str);
+            event.append(" failed to connect to the server because it wasn't on the whitelist.");
+            logEvent(event.c_str());
             continue; 
-            // TODO Log this
+            
          }
 
          new_conn->sendText("Welcome to the CSCE 689 Server!\n");
@@ -105,7 +115,14 @@ void TCPServer::listenSvr() {
       {
          // If the user lost connection
          if (!(*tptr)->isConnected()) {
-            // Log it
+            std::string event ("IP Address: ");
+            std::string ipaddr_str;
+            (*tptr)->getIPAddrStr(ipaddr_str);
+            event.append(ipaddr_str);
+            event.append(" ; User: ");
+            event.append((*tptr)->getUsernameStr());
+            event.append("; Disconnected.");
+            logEvent(event.c_str());
 
             // Remove them from the connect list
             tptr = _connlist.erase(tptr);
@@ -138,6 +155,31 @@ void TCPServer::listenSvr() {
 void TCPServer::shutdown() {
 
    _sockfd.closeFD();
+}
+
+/**
+ * logEvent - takes a string and writes it to the log file, after a date/time
+ * 
+ *    params - event string to write to the file
+ * 
+ */
+void TCPServer::logEvent(const char* event){
+   // Open the file with the append option
+   FileFD logFile("server.log");
+   if (!logFile.openFile(FileFD::appendfd))
+      perror ("Could not open server.log\n");
+   
+   // Get the current time and write it to the buffer
+   time_t now = time(0);
+   char* localTime = ctime(&now);
+   std::string local(localTime);
+   clrNewlines(local);
+   logFile.writeFD(local);
+   logFile.writeFD(" : "); // Just to make the line more readable
+
+   // Now write the event sting and a newline. 
+   logFile.writeFD(event);
+   logFile.writeFD("\n");
 }
 
 

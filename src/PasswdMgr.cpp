@@ -102,45 +102,42 @@ bool PasswdMgr::changePasswd(const char *name, const char *passwd) {
    if(!checkUser(name)){ return false; }
 
    // Variable set up:
-   std::stringstream buffer; 
    std::vector<uint8_t> salt, hash; 
    std::string line;
    std::string check(name);
-   std::ifstream read_pw_file(_pwd_file.c_str());
+   std::fstream read_pw_file(_pwd_file.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+   
 
    // Iterate over file, search for the name to grab the salt, then copy the line
    // into the string stream.
    while(std::getline(read_pw_file, line)){
       if(line == check){
-         // We are a line above where we want to be
-         buffer << line << "\n";
-         std::getline(read_pw_file, line); 
-         // line is now the hash and salt, get the salt
-         for(int i = hashlen; i < hashlen + saltlen; i++){
-            salt.push_back(line[i]);
+         // The fstream is at the first character of the hash now, save this position
+         auto hashStart = read_pw_file.tellg();
+         
+         // Get the hash and salt, then clear the hash
+         for(int i = 0; i < hashlen; i++){
+            hash.push_back(read_pw_file.get());
          }
+         for(int i = 0; i < saltlen; i++){
+            salt.push_back(read_pw_file.get());
+         }
+         hash.clear();
+
          // Get the hash with the salt
          hashArgon2(hash, salt, passwd, &salt);
-         // put hash then salt then new line into buffer, and \n
-         for(auto i = 0; i < hash.size(); i++){
-            buffer << hash[i];
-         }
-         for(auto i = 0; i < salt.size(); i++){
-            buffer << salt[i];
-         }
-         buffer << "\n";
 
-      } else {
-         buffer << line << "\n";
+         // Use seek to put the fstream back at the hashStart
+         read_pw_file.seekp(hashStart);
+
+         // Now overwrite the hash then break
+         read_pw_file.write(reinterpret_cast<char*>(&hash[0]), hashlen);
+
+         break;
       }
    }
-   read_pw_file.close(); 
-   
-   // Now open up the the passwd file and write the sstream into it
-   std::ofstream write_pw_file(_pwd_file.c_str());
-   write_pw_file << buffer.str(); 
-   write_pw_file.close();
-
+   // Remember to close the file
+   read_pw_file.close();
    return true;
 }
 
@@ -166,19 +163,25 @@ bool PasswdMgr::readUser(FileFD &pwfile, std::string &name, std::vector<uint8_t>
       name.clear();
       return false; 
    } else {
-      // We got a name, grab the next line
-      clrNewlines(name);
-      std::string nextLine; 
-      pwfile.readStr(nextLine);
-      clrNewlines(nextLine);
+      // We got a name, remove the \n \r 
+      clrNewlines(name); 
+      
+      // Now use the readBytes function to read in the next line, store it in a vector called line
+      std::vector<uint8_t> line;
+      int length = hashlen + saltlen;
+      pwfile.readBytes(line, length);
 
-      // Populate hash and salt now
-      for(auto i = 0; i < hashlen; i++){
-         hash.push_back(nextLine[i]);
+      // Now that line contains our hash and salt, fill in hash and salt
+      for(int i = 0; i < hashlen; i++){
+         hash.push_back(line[i]);
       }
-      for(auto i = hashlen; i < hashlen + saltlen; i++){
-         salt.push_back(nextLine[i]);
+      for(int i = hashlen; i < hashlen + saltlen; i++){
+         salt.push_back(line[i]);
       }
+
+      unsigned char newLine; // Have to call getByte to get the newline at the end of this line too!
+      pwfile.readByte(newLine); // Don't actually do anything with it. 
+      
    }
    
    // If we got here return true
@@ -261,6 +264,9 @@ bool PasswdMgr::findUser(const char *name, std::vector<uint8_t> &hash, std::vect
    bool eof = false;
    while (!eof) {
       std::string uname;
+      hash.clear();
+      salt.clear();
+      uname.clear();
 
       if (!readUser(pwfile, uname, hash, salt)) {
          eof = true;
@@ -294,7 +300,7 @@ void PasswdMgr::hashArgon2(std::vector<uint8_t> &ret_hash, std::vector<uint8_t> 
    
    // Check to see if in_salt is empty, if it is make a salt
    srand(time(0)); // Change the seed so we don't have the same salt every time
-   if(in_salt->size() == 0){
+   if(in_salt->size() == 0 || in_salt == NULL){
       for (auto i = 0; i < saltlen; i++){
          // This generates a random number bettwen 65 (A in ascii) to 122 (z)
          ret_salt.push_back((rand() % 57) + 65);
@@ -317,6 +323,7 @@ void PasswdMgr::hashArgon2(std::vector<uint8_t> &ret_hash, std::vector<uint8_t> 
          salt[i] = ret_salt[i];
       }
    } else {
+      // There was a salt passed in
       for(auto i = 0; i < saltlen; i++){
          salt[i] = in_salt->at(i);
          
@@ -326,9 +333,9 @@ void PasswdMgr::hashArgon2(std::vector<uint8_t> &ret_hash, std::vector<uint8_t> 
    }
 
    // Use the high-level API for argon 2
-   argon2i_hash_raw(t_cost, m_cost, parallelism, pwd.c_str(), pwd.size(), salt, saltlen, hash, hashlen);
+   argon2i_hash_raw(t_cost, m_cost, parallelism, in_passwd, strlen(in_passwd), salt, saltlen, hash, hashlen);
    
-   // Put the hash into ret_hash
+   // Put the hash into ret_hash 
    for(auto i = 0; i < hashlen; i++){
       ret_hash.push_back(hash[i]);
    }
@@ -360,6 +367,7 @@ void PasswdMgr::addUser(const char *name, const char *passwd) {
    
    // Write the username, add the \n to the end
    std::string userName(name);
+   lower(userName);
    userName.append("\n");
    pwfile.writeFD(userName);
 
